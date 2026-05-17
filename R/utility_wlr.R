@@ -311,3 +311,64 @@ prob_event.arm <- function(arm, tmin = 0, tmax = arm$total_time) {
 almost_equal <- function(x, k, tol = .Machine$double.eps^0.5) {
   abs(x - k) < tol
 }
+
+#                   library(gsDesign2)
+# library(testthat)
+
+# # 1. Define single-stratum data
+# enroll_single <- define_enroll_rate(duration = c(2, 2, 10), rate = c(3, 6, 9))
+# fail_single   <- define_fail_rate(duration = c(3, 100), fail_rate = log(2) / c(9, 18), hr = c(.9, .6), dropout_rate = .001)
+
+# # 2. Build arms using your new stratified gs_create_arm
+# arms_stratified_single <- gs_create_arm(enroll_single, fail_single, ratio = 1, total_time = 10)
+
+# # 3. Extract the single arm pair to simulate the old "unstratified" inputs
+# arm0_old <- arms_stratified_single[[1]]$arm0
+# arm1_old <- arms_stratified_single[[1]]$arm1
+
+# # 4. Compare your stratified function against the atomic evaluation
+# # (Since the old unstratified functions took arm0 and arm1 directly)
+# val_delta_strat <- gs_delta_wlr(arms_stratified_single, tmax = 10, weight = "logrank")
+
+# # Reconstruct what the unstratified integration inner-loop would output:
+# p1 <- arm1_old$size / (arm0_old$size + arm1_old$size)
+# p0 <- 1 - p1
+# val_delta_old <- stats::integrate(function(x) {
+#   term0 <- p0 * prob_risk(arm0_old, x, tmax = 10)
+#   term1 <- p1 * prob_risk(arm1_old, x, tmax = 10)
+#   term <- (term0 * term1) / (term0 + term1)
+#   term <- ifelse(is.na(term), 0, term)
+#   return(term * (npsurvSS::hsurv(x, arm1_old) - npsurvSS::hsurv(x, arm0_old)))
+# }, lower = 0, upper = 10)$value
+
+# # Assert they match perfectly
+# expect_equal(val_delta_strat, val_delta_old, tolerance = 1e-6)
+#                   # 1. Define two distinct strata profiles
+# enroll_multi <- rbind(
+#   define_enroll_rate(stratum = "Stratum_A", duration = c(12), rate = c(5)),
+#   define_enroll_rate(stratum = "Stratum_B", duration = c(12), rate = c(8))
+# )
+
+# fail_multi <- rbind(
+#   define_fail_rate(stratum = "Stratum_A", duration = c(100), fail_rate = log(2)/12, hr = 0.7, dropout_rate = 0.002),
+#   define_fail_rate(stratum = "Stratum_B", duration = c(100), fail_rate = log(2)/18, hr = 0.6, dropout_rate = 0.002)
+# )
+
+# # 2. Run the newly unified stratified calculation
+# arms_multi <- gs_create_arm(enroll_multi, fail_multi, ratio = 1, total_time = 24)
+# delta_combined <- gs_delta_wlr(arms_multi, tmax = 24, weight = "logrank")
+# sigma2_combined <- gs_sigma2_wlr(arms_multi, tmax = 24, weight = "logrank")
+
+# # 3. Manually compute them completely isolated from each other
+# arms_A <- gs_create_arm(enroll_multi[enroll_multi$stratum == "Stratum_A", ], fail_multi[fail_multi$stratum == "Stratum_A", ], ratio = 1, total_time = 24)
+# arms_B <- gs_create_arm(enroll_multi[enroll_multi$stratum == "Stratum_B", ], fail_multi[fail_multi$stratum == "Stratum_B", ], ratio = 1, total_time = 24)
+
+# delta_A <- gs_delta_wlr(arms_A, tmax = 24, weight = "logrank")
+# delta_B <- gs_delta_wlr(arms_B, tmax = 24, weight = "logrank")
+
+# sigma2_A <- gs_sigma2_wlr(arms_A, tmax = 24, weight = "logrank")
+# sigma2_B <- gs_sigma2_wlr(arms_B, tmax = 24, weight = "logrank")
+
+# # 4. Assert Additivity: Combined must equal Sum(A + B)
+# expect_equal(delta_combined, delta_A + delta_B, tolerance = 1e-6)
+# expect_equal(sigma2_combined, sigma2_A + sigma2_B, tolerance = 1e-6)
